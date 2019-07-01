@@ -1,0 +1,1015 @@
+%% Get Model Data
+path1 = '/net/h2o/climphys/ryserp/cesm/';
+addpath('/home/ryserp/matlab/matlab_netCDF_OPeNDAP');
+
+% file1 = 'trefht_ann_im128.400.mat';
+% All of the different simulations -- name changing
+simulations=['im128.420';...
+    'im128.560';...
+    'im64.430 ';...
+    'im128.340';...
+    'im128.440';...
+    'im128.800';...
+    'im64.450 ';...
+    'im128.350';...
+    'im128.460';...
+    'im128.820';...
+    'im64.470 ';...
+    'im128.360';...
+    'im128.480';...
+    'im128.840';...
+    'im64.490 ';...
+    'im128.500';...
+    'im128.860';...
+    'im64.510 ';...
+    'im128.380';...
+    'im128.520';...
+    'im64.390 ';...
+    'im64.530 ';...
+    'im128.400';...
+    'im128.540';...
+    'im64.410 ';...
+    'im64.550 '];
+simulations = string(simulations);
+
+
+% load latitutde and logitude
+lat=getnc('/net/h2o/climphys/medhaugi/data/cesm104/grid_files/areacella_cesm104_f19_g16.340.nc','lat');
+lon=getnc('/net/h2o/climphys/medhaugi/data/cesm104/grid_files/areacella_cesm104_f19_g16.340.nc','lon');
+% Load in how one area cell looks like
+areacell = getnc('/net/h2o/climphys/medhaugi/data/cesm104/grid_files/areacella_cesm104_f19_g16.340.nc','areacella');
+[lon, lat] = meshgrid(lon,lat);
+%Load Ocean Fraction
+ocnfrac = getnc('/net/h2o/climphys/medhaugi/data/cesm104/grid_files/b.e104.B_1850-2000_CN.f19_g16.im128.340.cam2.h0.2000-01.nc','OCNFRAC');
+
+global_area = sum(sum(areacell,1));
+Global_area_weight = areacell / global_area;
+
+%% Get observational Data
+
+obs_path = ['/net/h2o/climphys/medhaugi/data/for_patric/had4_krig_v2_0_0.nc'];
+data_obs_raw = getnc(obs_path, 'temperature_anomaly');
+lon_obs = linspace(-177.5,177.5,72);
+
+lat_obs = linspace(-87.5,87.5,36);
+
+[lon_obs, lat_obs] = meshgrid(lon_obs,lat_obs);
+
+data_obs_ann = my_mnd2ann3D(data_obs_raw);
+time_obs_ann = [1850:2018].';
+
+save('/net/h2o/climphys/ryserp/observational_data/data_obs_1850-2018','data_obs_ann','time_obs_ann');
+
+area_weight_obs = cosd(lat_obs) ;
+area_weight_obs = cosd(lat_obs)/sum(sum(area_weight_obs,1));
+
+
+data_obs_1961_1990 = NaN(1,169); %169 years, (1850-2018)
+%data_swiss = NaN(1,169);
+%data_europe = NaN(1,169);
+
+    % calculate global mean
+    
+    
+    % trefht
+    for t=1:169
+        gtw_mat_obs = squeeze(data_obs_ann(t,:,:)).* area_weight_obs;
+        data_obs_1961_1990(t) = sum(sum(gtw_mat_obs,1));
+    end
+
+% Observational Temperatures (0 = mean(1961-1990)
+figure;
+plot(1850:2018, data_obs_1961_1990)
+xlabel('Year')
+ylabel('Temperatures (°C)')
+
+% polyfit the trend of observational data. 
+trend_obs = polyfit([1,1:118],data_obs_1850_1900(1,51:end),1);
+% Switch to 0 = mean(1850-1900)
+
+diff_1961_1990_1850_1900 = -mean(data_obs_1961_1990(1,1:50));
+data_obs_1850_1900 = data_obs_1961_1990 + diff_1961_1990_1850_1900;
+
+% Observational Temperatures (0 = mean(1850-1900))
+figure;
+plot(1850:2018, data_obs_1850_1900)
+xlabel('Year')
+ylabel('Temperatures (°C)')
+saveas(gcf,'/home/ryserp/matlab_figures/Observational_temperatures_1850_1900.jpg')
+
+%% 0.1 temperature of Switzerland...
+
+% 6.1 map_swiss
+map_swiss = areacell;
+map_swiss(73:74, 4:5) = 1;
+map_swiss(map_swiss ~= 1) = zeros ;
+
+% 6.2 swiss_area_weight = areacell / Swiss_area
+swiss_areacell = map_swiss .* areacell;
+swiss_area = sum(sum(swiss_areacell,1));
+
+areafrac_swiss = swiss_areacell / swiss_area;
+
+% 6.3 Land fraction
+%swiss_land_fraction = map_swiss .* (1-ocnfrac);
+
+% 6.4 multiply the previous 3,a combination of the above terms.
+%areafrac_swiss = map_swiss .* swiss_area_weight .* swiss_land_fraction;
+
+%% 0.2 temperature of Europe
+
+% 7.1 map_europe
+map_europe = areacell;
+
+map_europe(67:86, 135:144) = 1;
+map_europe(67:86, 1:21) = 1;
+map_europe(map_europe ~= 1) = zeros ;
+figure;
+pcolor(map_europe)
+% 7.2 Land fraction
+europe_land_fraction = map_europe .* (1-ocnfrac);
+europe_land_fraction(europe_land_fraction == 0) =NaN;
+% europe_land_fraction(europe_land_fraction <= 0.5) =NaN;
+figure;
+pcolor(europe_land_fraction)
+
+% 7.3 europe_area_weight = areacell / Europe_area
+europe_areacell = europe_land_fraction .* areacell;
+
+europe_area = nansum(nansum(europe_areacell,1));
+
+areafrac_europe = europe_areacell / europe_area;
+
+% nansum(nansum(europe_area_weight,1))
+% 7.4 multiply the previous 3,a combination of the above terms.
+% areafrac_europe = map_europe .* europe_areacell;
+% nansum(area
+
+%% Temperature of each cell --> data_cell_C
+
+
+
+
+%% 0. Create a mean for each time step and model resulting in a 26x156 matrix
+data = NaN(26,156); %156 years, 26 Models
+data_swiss = NaN(26,156);
+data_europe = NaN(26,156);
+data_cell = NaN(26,156,96,144);
+for sim=1:length(simulations(:,1))
+    file1 =char('trefht_ann_'+ deblank(simulations(sim,:)) + '.mat');
+    %data(sim,1) = load([path1 char(simulations(sim,:))]);
+    
+    %file2 = char(simulations(2,:));
+    load([path1 file1]);
+    
+    % trefht
+    data_cell(sim,:,:,:) = squeeze(data_ann(:,:,:));
+    
+    gtw = NaN(156,1);
+    for t=1:156
+        gtw_mat = squeeze(data_ann(t,:,:)).* Global_area_weight;
+        gtw(t) = sum(sum(gtw_mat,1));
+        data(sim,t)=gtw(t);
+    end
+    
+    stw = NaN(156,1);
+    for t=1:156
+        stw_mat = squeeze(data_ann(t,:,:)).* areafrac_swiss;
+        stw(t) = sum(sum(stw_mat,1));
+        data_swiss(sim,t) = stw(t);
+    end
+    
+    etw = NaN(156,1);
+    for t=1:156
+        etw_mat = squeeze(data_ann(t,:,:)).* areafrac_europe;
+        etw(t) = nansum(nansum(etw_mat,1));
+        data_europe(sim,t) = etw(t);
+    end
+      
+end
+data_C = data - 273.15;
+data_swiss_C = data_swiss - 273.15;
+data_europe_C = data_europe - 273.15;
+data_cell_C = data_cell -273.15;
+
+data_swiss_156yeardiff = data_swiss_C(:,156) - data_swiss_C(:,1);
+data_swiss_156yeardiff_mean = mean(data_swiss_156yeardiff);
+% Trend
+% Although the absolute temperatures were a lot more than observational
+% data, the differences in the 156 year period is more or less correctly
+% returned. 
+
+% %% Map of Europe
+%     %    add colorbar
+%     h3 = colorbar('color', [0 0 0], 'box', 'on', 'tickdirection', 'in');
+%     
+%     % set limit of data
+%     set(gca, 'clim', [-20,20]); % set colour limit
+%     
+%     figure;
+%     m_proj('robinson', 'lat', [35 71], 'lon', [-24.5 50] );
+%     h = m_pcolor(lon, lat, (squeeze(ensemble_mean_cell(1,1,:,:)))); set(h, 'linestyle', 'none'); hold on;
+%     h = m_pcolor(lon-357, lat, (squeeze(ensemble_mean_cell(1,1,:,:)))); set(h, 'linestyle', 'none'); hold on;
+%     m_grid; 
+%     
+%     % add coastline
+%     m_coast('color', [0 0 0]);
+%     bar = colorbar('northoutside');
+%     title(bar, 'Temperature (°C)');
+%     saveas(gcf,'/home/ryserp/matlab_figures/Map_of_Europe_1850.jpg')
+    
+%% Map of the World
+    %    add colorbar
+    h3 = colorbar('color', [0 0 0], 'box', 'on', 'tickdirection', 'in');
+    
+    % set limit of data
+    set(gca, 'clim', [-20,20]); % set colour limit
+    
+    figure;
+    m_proj('robinson', 'lat', [-90 90], 'lon', [-180 180] );
+    h = m_pcolor(lon, lat, (squeeze(data_ann(1,:,:))-273.15)); set(h, 'linestyle', 'none'); hold on;
+    h = m_pcolor(lon-357, lat, (squeeze(data_ann(1,:,:)-273.15))); set(h, 'linestyle', 'none'); hold on;
+    m_grid; 
+    
+    % add coastline
+    m_coast('color', [0 0 0]);
+    bar = colorbar('northoutside');
+    title(bar, 'Temperature (°C)');
+    saveas(gcf,'/home/ryserp/matlab_figures/Map_of_the_World_1850.jpg')
+
+    
+%% plotting a time series
+
+% for the x axis, we have time
+x = time_ann;
+% for the x axis we have the mean temperature in K over the years
+y = data_C;
+% ts1 = timeseries(x,y);
+% 
+% ts1.Name = 'Global annual mean temperature in K';
+% ts1.TimeInfo.Units = 'years';
+%  
+% figure;
+% plot(ts1)
+
+figure;
+plot(x,y)
+% title('Global annual mean temperatures from 26 simulations')
+xlabel('Year')
+ylabel('Simulation Temperatures (°C)')
+saveas(gcf,'/home/ryserp/matlab_figures/All_Models.jpg')
+% ys = data_swiss;
+% plot(x,ys)
+
+
+%% 1. Getting the ensemble mean global: 26x156 -> 1x156
+
+ensemble_mean = mean(data_C,1);
+figure;
+plot(time_ann,ensemble_mean)
+xlabel('Year')
+ylabel('Temperature (°C)')
+saveas(gcf,'/home/ryserp/matlab_figures/ensemble_mean.jpg')
+
+%% 1.1 Ensemble mean for Europe
+
+ensemble_mean_europe = mean(data_europe_C,1);
+figure;
+plot(time_ann,ensemble_mean_europe)
+xlabel('Year')
+ylabel('Temperature (°C)')
+saveas(gcf,'/home/ryserp/matlab_figures/ensemble_mean_europe.jpg')
+
+%% 1.2 Ensemble mean for Switzerland
+
+ensemble_mean_swiss = mean(data_swiss_C,1);
+figure;
+plot(time_ann,ensemble_mean_swiss)
+xlabel('Year')
+ylabel('Temperature (°C)')
+saveas(gcf,'/home/ryserp/matlab_figures/ensemble_mean_swiss.jpg')
+
+
+%% 1.3 Ensemble mean for every cell. 
+
+ensemble_mean_cell = NaN(1,156,96,144);
+   
+ensemble_mean_cell(1,:,:,:) = mean(data_cell_C,1);
+
+%% 2. Subtract mean from Time Series (global)
+data_subtract_mean = NaN(size(data_C));
+for sim = 1:length(simulations(:,1))
+    data_subtract_mean(sim,:) = data_C(sim,:) - ensemble_mean;
+end
+
+
+% test with mean of data_subtract_mean (should be zero)
+var_test = mean(data_subtract_mean,1);
+% elements of var_test are very close to zero
+M = mean(var_test);
+% Mean is almost zero
+S = (var_test);
+% The std of var_test is also very close to zero
+% This proves that the ensemble mean is correct, and data_subtract_mean is
+% a timeseries without a trend and represents the variation of temperature.
+
+% for the x axis, we have time
+x1 = time_ann;
+% for the x axis we have the mean temperature in K over the years
+y1 = data_subtract_mean;
+figure; plot(x1,y1)
+xlabel('Year')
+ylabel('Temperature (°C)')
+saveas(gcf,'/home/ryserp/matlab_figures/Variation_without_trend(ensemble_mean)=interannual_variability.jpg') 
+
+%% 2.1 Subtract mean from Time Series (Europe)
+data_subtract_mean_europe = NaN(size(data_europe_C));
+for sim = 1:length(simulations(:,1))
+    data_subtract_mean_europe(sim,:) = data_europe_C(sim,:) - ensemble_mean_europe;
+end
+
+%% 2.2 Subtract mean from Time Series (Swiss)
+data_subtract_mean_swiss = NaN(size(data_swiss_C));
+for sim = 1:length(simulations(:,1))
+    data_subtract_mean_swiss(sim,:) = data_swiss_C(sim,:) - ensemble_mean_swiss;
+end
+
+
+%% 2.3 subtract mean from the data_cell_C
+
+data_subtract_mean_cell = NaN(size(data_cell_C));
+for sim = 1:length(simulations(:,1))
+    data_subtract_mean_cell(sim,:,:,:) = data_cell_C(sim,:,:,:) - ensemble_mean_cell;
+end
+
+%% 3.1 Fitting a trend for the temperature time series in each cell.
+
+
+
+%% 3*. Std of the Variation in Temperature from the mean (data_subtract_mean)
+
+% Finding out the std of all the different models.
+Std_var = NaN(size(data_subtract_mean,1),1); 
+for time=1:size(data_subtract_mean,2)
+    Std_var(time)=std(data_subtract_mean(:,time));
+end
+figure; plot(time_ann,Std_var) 
+xlabel('Year')
+ylabel('Temperature (°C)')
+saveas(gcf,'/home/ryserp/matlab_figures/std_between_the_different_models_after_removing_the_ensemble_mean(I_am_not_sure_what_this_does).jpg')
+
+% Finding
+
+
+%% 3. 15 year Running mean (global) of the different models with their mean already removed (taking an interval of 15 years)
+rm = NaN(size(data_subtract_mean));
+for s=1:size(data_subtract_mean,1)
+    rm(s,:) = movmean(data_subtract_mean(s,:),15);
+end
+rm(:,1:7) = NaN;
+rm(:,(size(data_subtract_mean,2)-6):size(data_subtract_mean,2)) = NaN;
+figure;
+
+plot(time_ann,rm)
+xlabel('Year')
+ylabel('Temperature (°C)')
+saveas(gcf,'/home/ryserp/matlab_figures/15_year_running_mean_of_the_interannual_variability.jpg') 
+
+% Using LOESS
+xx = time_ann';
+yy1 = smooth(xx,ensemble_mean,0.3,'loess');
+figure;
+plot(time_ann,ensemble_mean); hold on;
+
+plot(time_ann,yy1)
+xlabel('Year')
+ylabel('Temperature (°C)')
+saveas(gcf,'/home/ryserp/matlab_figures/loess_smoothing_of_the_ensemble_mean.jpg') 
+
+%% 3.1 15-yr running mean (europe) 
+rm_europe = NaN(size(data_subtract_mean_europe));
+for s=1:size(data_subtract_mean_europe,1)
+    rm_europe(s,:) = movmean(data_subtract_mean_europe(s,:),15);
+end
+rm_europe(:,1:7) = NaN;
+rm_europe(:,(size(data_subtract_mean,2)-6):size(data_subtract_mean,2)) = NaN;
+
+figure;
+plot(time_ann,rm_europe)
+xlabel('Year')
+ylabel('Temperature (°C)')
+saveas(gcf,'/home/ryserp/matlab_figures/15_year_running_mean(europe)_of_the_interannual_variability.jpg') 
+
+%% 3.2 15-yr running mean (swiss)
+rm_swiss = NaN(size(data_subtract_mean_europe));
+for s=1:size(data_subtract_mean_europe,1)
+    rm_swiss(s,:) = movmean(data_subtract_mean_swiss(s,:),15);
+end
+rm_swiss(:,1:7) = NaN;
+rm_swiss(:,(size(data_subtract_mean,2)-6):size(data_subtract_mean,2)) = NaN;
+
+figure;
+plot(time_ann,rm_swiss)
+xlabel('Year')
+ylabel('Temperature (°C)')
+saveas(gcf,'/home/ryserp/matlab_figures/15_year_running_mean(europe)_of_the_interannual_variability.jpg') 
+
+
+%% 3.3 15-yr Running Mean of the data_subtract_mean_cell
+rm_cell=NaN(size(data_subtract_mean_cell));
+for s=1:size(data_subtract_mean_cell,1)
+    for la=1:96
+        for lo=1:144
+            rm_cell(s,7:149,la,lo)=movmean(data_subtract_mean_cell(s,7:149,la,lo),15);
+        end
+    end
+end
+
+%% 4.1 putting the rm_cell into one large series with one dimension less.
+
+rm_long_cell = rm_cell(1,8:149,:,:);
+
+for i=2:26
+    rm_long_cell = [rm_long_cell, rm_cell(i,8:149,:,:)];
+end
+
+std_cell = NaN(96,144);
+for la=1:96
+    for lo=1:144
+        std_cell(la,lo) = std(rm_long_cell(1,:,la,lo));
+    end
+end
+
+%% World Variability Map
+    %    add colorbar
+    h3 = colorbar('color', [0 0 0], 'box', 'on', 'tickdirection', 'in');
+    
+    % set limit of data
+    set(gca, 'clim', [0,3]); % set colour limit
+    
+    figure;
+    m_proj('robinson', 'lat', [-90 90], 'lon', [-180 180] );
+    h = m_pcolor(lon, lat, std_cell); set(h, 'linestyle', 'none'); hold on;
+    h = m_pcolor(lon-357, lat, std_cell); set(h, 'linestyle', 'none'); hold on;
+    m_grid; 
+    
+    
+    % add coastline
+    m_coast('color', [0 0 0]);
+    bar = colorbar('southoutside');
+    title(bar, 'Temperature (°C)');
+    saveas(gcf,'/home/ryserp/matlab_figures/World_Variability_map.jpg')
+    
+
+
+%% 4. (World) Standard Deviation of the Time Series from the different models
+% 4.0.1 Firstly, under the assumption that the variability does not change 
+% over time. putting the running means of the interannual variability 
+% (15_yr_rm) of the different simulations into one large series. 
+
+
+%rm_long = NaN(1,26*size(rm,2));
+rm_long = rm(1,8:149);
+%for index = 1:length(rm_long)
+std(rm_long)
+for i=2:26
+    rm_long = [rm_long, rm(i,8:149)];
+end
+std_world = std(rm_long);
+plot(rm_long)
+% The above is the standard deviation of all the model simulations from the
+% ensemble mean. It has a value of 0.09. 
+
+% Seeing if vector length affects the value of the standard deviation
+rm_test = rm(1,8:149);
+for i = 1:5826
+    rm_test = [rm_test, rm(1,8:149)];
+end
+std(rm_test)
+%no
+
+% A quick look at the standard deviations of the different simulations
+stds = NaN(26,1);
+for i=1:26
+    stds(i) = std(rm(i,8:149));
+end
+
+figure;
+plot(1:26, stds)
+% 0.0887 is the highest value. 
+
+% 4.0.2 Assuming that the natural variability does change over time. 
+% We check tPt_var = NaN(2,156);
+Pt_var = prctile(rm, [10 90], 1);% the percentiles of the variability
+
+% See if variability changes over time
+figure;
+
+bound_xv = [1850:2005,fliplr(1850:2005)];
+bound_yv1 = [Pt_var(1,:),fliplr(Pt_var(2,:))];
+patch1v = patch(bound_xv,bound_yv1,'b');
+patch1v.FaceAlpha = 0.2;
+patch1v
+% hold on
+% bound_y2 = [ensemble_mean,fliplr(Pt(2,:))];
+% patch2 = patch(bound_x,bound_y2,'r');
+% patch2.FaceAlpha = 0.2;
+% patch2
+xlabel('Year')
+ylabel('Temperature (°C)')
+saveas(gcf,'/home/ryserp/matlab_figures/Change_of_natural_variability_over_time.jpg')
+hold on
+
+%% 4.2 (Europe) Standard Deviation of the Time Series from the different models
+rm_long_europe = rm_europe(1,8:149);
+%for index = 1:length(rm_long)
+%std(rm_long_europe)
+for i=2:26
+    rm_long_europe = [rm_long_europe, rm_europe(i,8:149)];
+end
+std_europe = std(rm_long_europe);
+
+%% 4.2 (Swiss) Standard Deviation of the Time Series from the different models
+rm_long_swiss = rm_swiss(1,8:149);
+%for index = 1:length(rm_long)
+%std(rm_long_swiss)
+for i=2:26
+    rm_long_swiss = [rm_long_swiss, rm_swiss(i,8:149)];
+end
+%Noise
+std_swiss = std(rm_long_swiss);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% 5. Making the graph with the gray bars and the forced signal
+
+
+
+%% 5. ToE (World, Europe, Swiss)
+
+
+%% 5.1.1 ToE World
+avg_1850to1900 = repelem(mean(ensemble_mean(1,1:50)),156);
+Pt = NaN(2,156);
+
+ToE_world = NaN(1,1);
+for t=1:156
+    if (((ensemble_mean(1,t)-avg_1850to1900(1,t)) > (2*std_world)) && (isnan(ToE_world)))
+        ToE_world = 1849+t;
+    end
+end
+    
+for ti=1:size(data_C,2)
+    Pt(:,ti) = prctile(data_C(:,ti),[10 90]);
+end
+% This delivers the same result as above.
+Pt = prctile(data_C-avg_1850to1900, [10 90], 1);
+Pt_0to100 = prctile(data_C-avg_1850to1900, [0 100], 1);
+
+%% 5.1 Making that ToE Time Series for the World
+%10to90th
+figure;
+bound_x = [1850:2005,fliplr(1850:2005)];
+bound_y1 = [Pt(1,:),fliplr(ensemble_mean-avg_1850to1900)];
+patch1 = patch(bound_x,bound_y1,'b');
+patch1.FaceAlpha = 0.2;
+patch1
+hold on
+bound_y2 = [ensemble_mean-avg_1850to1900,fliplr(Pt(2,:))];
+patch2 = patch(bound_x,bound_y2,'b');
+patch2.FaceAlpha = 0.2;
+patch2
+xlabel('Year')
+ylabel('Temperature (°C)')
+hold on
+% 5.1 Now adding the percentiles to the bars of standard deviation.
+plot(time_ann,avg_1850to1900-avg_1850to1900, ':')
+hold on
+bound_x = [1850:2005,fliplr(1850:2005)];
+bound_y3 = [avg_1850to1900-avg_1850to1900-2*std_world,fliplr(avg_1850to1900-avg_1850to1900+2*std_world)];
+patch3 = patch(bound_x,bound_y3,'k');
+patch3.FaceAlpha = 0.1;
+patch3
+saveas(gcf,'/home/ryserp/matlab_figures/Emergence_of_10to90th_prctile(World)_from_internal_variability.jpg')
+
+%0to100th
+figure;
+bound_x = [1850:2005,fliplr(1850:2005)];
+bound_y1 = [Pt_0to100(1,:),fliplr(ensemble_mean-avg_1850to1900)];
+patch1 = patch(bound_x,bound_y1,'b');
+patch1.FaceAlpha = 0.2;
+patch1
+hold on
+bound_y2 = [ensemble_mean-avg_1850to1900,fliplr(Pt(2,:))];
+patch2 = patch(bound_x,bound_y2,'b');
+patch2.FaceAlpha = 0.2;
+patch2
+xlabel('Year')
+ylabel('Temperature (°C)')
+hold on
+% 5.1 Now adding the percentiles to the bars of standard deviation.
+plot(time_ann,avg_1850to1900-avg_1850to1900, ':')
+hold on
+bound_x = [1850:2005,fliplr(1850:2005)];
+bound_y3 = [avg_1850to1900-avg_1850to1900-2*std_world,fliplr(avg_1850to1900-avg_1850to1900+2*std_world)];
+patch3 = patch(bound_x,bound_y3,'k');
+patch3.FaceAlpha = 0.1;
+patch3
+saveas(gcf,'/home/ryserp/matlab_figures/Emergence_of_0to100th_prctile(World)_from_internal_variability.jpg')
+
+
+%hold on
+
+
+
+
+%% 5.2 Now the ToE Time Series for Europe
+% 5.2.1 making the baseline
+avg_1850to1900_europe = repelem(mean(ensemble_mean_europe(1,1:50)),156);
+Pt_europe = NaN(2,156);
+Pt_europe = prctile(data_europe_C-avg_1850to1900_europe, [10 90], 1);
+Pt_europe_0to100 = prctile(data_europe_C-avg_1850to1900_europe, [0 100], 1);
+%% 5.2.2 ToE Europe
+ToE_europe = NaN(1,1);
+for t=1:156
+    if (((ensemble_mean_europe(1,t)-avg_1850to1900_europe(1,t)) > (2*std_europe)) && (isnan(ToE_europe)))
+        ToE_europe = 1849+t;
+    end
+end
+
+% 10to90th
+figure;
+bound_x = [1850:2005,fliplr(1850:2005)];
+bound_y1 = [Pt_europe(1,:),fliplr(ensemble_mean_europe-avg_1850to1900_europe)];
+patch1 = patch(bound_x,bound_y1,'b');
+patch1.FaceAlpha = 0.2;
+patch1
+hold on
+bound_y2 = [ensemble_mean_europe-avg_1850to1900_europe,fliplr(Pt_europe(2,:))];
+patch2 = patch(bound_x,bound_y2,'b');
+patch2.FaceAlpha = 0.2;
+patch2
+xlabel('Year')
+ylabel('Temperature (°C)')
+hold on
+% 5.2.2 Now adding the percentiles to the bars of standard deviation.
+
+plot(time_ann,avg_1850to1900_europe-avg_1850to1900_europe, ':')
+hold on
+bound_x = [1850:2005,fliplr(1850:2005)];
+bound_y3 = [avg_1850to1900-avg_1850to1900-2*std_europe,fliplr(avg_1850to1900-avg_1850to1900+2*std_europe)];
+patch3 = patch(bound_x,bound_y3,'k');
+patch3.FaceAlpha = 0.1;
+patch3
+saveas(gcf,'/home/ryserp/matlab_figures/Emergence_of_10to90th_prctile(Europe)_from_internal_variability.jpg')
+
+% 0to100th
+figure;
+bound_x = [1850:2005,fliplr(1850:2005)];
+bound_y1 = [Pt_europe_0to100(1,:),fliplr(ensemble_mean_europe-avg_1850to1900_europe)];
+patch1 = patch(bound_x,bound_y1,'b');
+patch1.FaceAlpha = 0.2;
+patch1
+hold on
+bound_y2 = [ensemble_mean_europe-avg_1850to1900_europe,fliplr(Pt_europe(2,:))];
+patch2 = patch(bound_x,bound_y2,'b');
+patch2.FaceAlpha = 0.2;
+patch2
+xlabel('Year')
+ylabel('Temperature (°C)')
+hold on
+% 5.2.2 Now adding the percentiles to the bars of standard deviation.
+
+plot(time_ann,avg_1850to1900_europe-avg_1850to1900_europe, ':')
+hold on
+bound_x = [1850:2005,fliplr(1850:2005)];
+bound_y3 = [avg_1850to1900-avg_1850to1900-2*std_europe,fliplr(avg_1850to1900-avg_1850to1900+2*std_europe)];
+patch3 = patch(bound_x,bound_y3,'k');
+patch3.FaceAlpha = 0.1;
+patch3
+saveas(gcf,'/home/ryserp/matlab_figures/Emergence_of_0to100th_prctile(Europe)_from_internal_variability.jpg')
+
+%% 5.3 Now the ToE Time Series for Switzerland
+% 5.3.1 making the baseline
+avg_1850to1900_swiss = repelem(mean(ensemble_mean_swiss(1,1:50)),156);
+Pt_swiss = NaN(2,156);
+Pt_swiss = prctile(data_swiss_C-avg_1850to1900_swiss, [10 90], 1);
+Pt_swiss_0to100 = prctile(data_swiss_C-avg_1850to1900_swiss, [0 100], 1);
+
+%% 5.3.2 ToE Switzerland
+ToE_swiss = NaN(1,1);
+for t=1:156
+    if (((ensemble_mean_swiss(1,t)-avg_1850to1900_swiss(1,t)) > (2*std_swiss)) && (isnan(ToE_swiss)))
+        ToE_swiss = 1849+t;
+    end
+end
+
+%10to90
+figure;
+bound_x = [1850:2005,fliplr(1850:2005)];
+bound_y1 = [Pt_swiss(1,:),fliplr(ensemble_mean_swiss-avg_1850to1900_swiss)];
+patch1 = patch(bound_x,bound_y1,'b');
+patch1.FaceAlpha = 0.2;
+patch1
+hold on
+bound_y2 = [ensemble_mean_swiss-avg_1850to1900_swiss,fliplr(Pt_swiss(2,:))];
+patch2 = patch(bound_x,bound_y2,'b');
+patch2.FaceAlpha = 0.2;
+patch2
+xlabel('Year')
+ylabel('Temperature (°C)')
+hold on
+% 5.2.2 Now adding the percentiles to the bars of standard deviation.
+plot(time_ann,avg_1850to1900_swiss-avg_1850to1900_swiss, ':')
+hold on
+bound_x = [1850:2005,fliplr(1850:2005)];
+bound_y3 = [avg_1850to1900-avg_1850to1900-2*std_swiss,fliplr(avg_1850to1900-avg_1850to1900+2*std_swiss)];
+patch3 = patch(bound_x,bound_y3,'k');
+patch3.FaceAlpha = 0.1;
+patch3
+saveas(gcf,'/home/ryserp/matlab_figures/Emergence_of_10to90th_prctile(Swiss)_from_internal_variability.jpg')
+
+%0to100
+figure;
+bound_x = [1850:2005,fliplr(1850:2005)];
+bound_y1 = [Pt_swiss_0to100(1,:),fliplr(ensemble_mean_swiss-avg_1850to1900_swiss)];
+patch1 = patch(bound_x,bound_y1,'b');
+patch1.FaceAlpha = 0.2;
+patch1
+hold on
+bound_y2 = [ensemble_mean_swiss-avg_1850to1900_swiss,fliplr(Pt_swiss(2,:))];
+patch2 = patch(bound_x,bound_y2,'b');
+patch2.FaceAlpha = 0.2;
+patch2
+xlabel('Year')
+ylabel('Temperature (°C)')
+hold on
+% 5.2.2 Now adding the percentiles to the bars of standard deviation.
+plot(time_ann,avg_1850to1900_swiss-avg_1850to1900_swiss, ':')
+hold on
+bound_x = [1850:2005,fliplr(1850:2005)];
+bound_y3 = [avg_1850to1900-avg_1850to1900-2*std_swiss,fliplr(avg_1850to1900-avg_1850to1900+2*std_swiss)];
+patch3 = patch(bound_x,bound_y3,'k');
+patch3.FaceAlpha = 0.1;
+patch3
+saveas(gcf,'/home/ryserp/matlab_figures/Emergence_of_10to90th_prctile(Swiss)_from_internal_variability.jpg')
+
+%3std
+
+% plot1 = plot(time_ann, data,':');
+% plot1.FaceAlpha = 0.01;
+% plot1
+
+% f=figure;
+% set(f,'Units', 'normalized', 'outerposition', [0 0 1 1]);
+% 
+% fill( [z' fliplr(z')],  [(avg_1850to1900 - std_world) fliplr((avg_1850to1900 + std_world))], 'k');
+% alpha(0.4);
+% hold on
+% plot(normal,avg_1850to1900,'k','LineWidth',2);
+% figure;
+% fill([1850:2005 1850:2005], [Pt(1,:) ensemble_mean], 'r')
+% clf
+% shadedErrorBar(time_ann,ensemble_mean,{@mean,@std});
+
+% plot(x,[Pt;ensemble_mean])
+% 
+% plot(x,data)
+
+
+saveas(gcf,'/home/ryserp/matlab_figures/Percentile_of_the_different_models.jpg') 
+
+
+
+
+%% 6. Making the trends for the different regions (Europe, Switzerland 
+%% and the world + global cells).
+
+% World
+gt_coeff = polyfit(permute(time_ann,[2,1]),ensemble_mean,1);
+trend_y = gt_coeff(1)*time_ann + gt_coeff(2);
+figure;
+plot(time_ann, trend_y)
+hold on
+plot(time_ann,ensemble_mean)
+
+% cells
+gt_cells = NaN(2,96,144);
+
+for la= 1:96
+    for lo= 1:144
+        gt_cells(:,la,lo)=polyfit(permute(time_ann,[2,1]),ensemble_mean_cell(1,:,la,lo),1);
+    end
+end
+%gt_cells_decade = gt_cells
+time = 1:156;
+%trends_y = gt_cells(1,:,:)*time_ann + gt_cells(2,:,:);
+
+%% Map the trend
+    h3 = colorbar('color', [0 0 0], 'box', 'on', 'tickdirection', 'in');
+    
+    % set limit of data
+    set(gca, 'clim', [0,3]); % set colour limit
+    
+    figure;
+    
+    m_proj('robinson', 'lat', [-90 90], 'lon', [-180 180] );
+    h = m_pcolor(lon, lat, squeeze(gt_cells(1,:,:)*10)); set(h, 'linestyle', 'none'); hold on;
+    h = m_pcolor(lon-357, lat, squeeze(gt_cells(1,:,:)*10)); set(h, 'linestyle', 'none'); hold on;
+    m_grid; 
+    %set(gca,
+    
+    % add coastline
+    m_coast('color', [0 0 0]);
+    bar = colorbar('southoutside');
+    title(bar, 'Trend (°C/decade)');
+    saveas(gcf,'/home/ryserp/matlab_figures/World_trend_map.jpg')
+
+%% 7. Making the Signal to Noise map. 
+% For Signal, here we use the Ensemble mean
+noise_cell = std_cell*2;
+% Ensemble_cell_156_yrs = squeeze(ensemble_mean_cell(1,156,:,:))-squeeze(ensemble_mean_cell(1,1,:,:));
+% StoN_156_yrs_ensemle = Ensemble_cell_156_yrs ./ noise_cell;
+% 
+% % Map the S/N ratio over 156 years (using ensemble mean)
+%     h3 = colorbar('color', [0 0 0], 'box', 'on', 'tickdirection', 'in');
+%     
+%     % set limit of data
+%     set(gca, 'clim', [0,3]); % set colour limit
+%     
+%     figure;
+%     m_proj('robinson', 'lat', [-90 90], 'lon', [-180 180] );
+%     h = m_pcolor(lon, lat, StoN_156_yrs); set(h, 'linestyle', 'none'); hold on;
+%     h = m_pcolor(lon-357, lat, StoN_156_yrs); set(h, 'linestyle', 'none'); hold on;
+%     m_grid; 
+%      
+%     % add coastline
+%     m_coast('color', [0 0 0]);
+%     bar = colorbar('southoutside');
+%     title(bar, 'Signal to Noise ratio (ensemble data)');
+%     saveas(gcf,'/home/ryserp/matlab_figures/156yrs_Signal_to_Noise(ensemble).jpg')
+% 
+
+% For the Signal, we use the trend.
+signal_cell_156_yrs = squeeze(gt_cells(1,:,:))*156;
+StoN_156_yrs = signal_cell_156_yrs ./ noise_cell;
+
+% Map the S/N ratio over 156 years (using trend)
+    h3 = colorbar('color', [0 0 0], 'box', 'on', 'tickdirection', 'in');
+    
+    % set limit of data
+    set(gca, 'clim', [0,3]); % set colour limit
+    
+    figure;
+    m_proj('robinson', 'lat', [-90 90], 'lon', [-180 180] );
+    h = m_pcolor(lon, lat, StoN_156_yrs); set(h, 'linestyle', 'none'); hold on;
+    h = m_pcolor(lon-357, lat, StoN_156_yrs); set(h, 'linestyle', 'none'); hold on;
+    m_grid; 
+    
+    % add coastline
+    m_coast('color', [0 0 0]);
+    bar = colorbar('southoutside');
+    title(bar, 'Signal to Noise ratio');
+    saveas(gcf,'/home/ryserp/matlab_figures/156yrs_Signal_to_Noise.jpg')
+
+%% 8. Making the Time of Emergence Map
+Signal = NaN(156,96,144);
+avg_1850to1900_cell = NaN(156,96,144);
+for lo = 1:144
+    for la = 1:96
+        avg_1850to1900_cell(:,la,lo)=squeeze(repelem(mean(ensemble_mean_cell(1,1:50,la,lo)),156);
+for t =1:156
+    Signal(t,:,:) = squeeze(ensemble_mean_cell(1,t,:,:))-squeeze(ensemble_mean_cell(1,1,:,:));
+end
+
+ToE = NaN(96,144);
+for t = 1:156
+    for lo=1:144
+        for la=1:96
+            if ((squeeze(Signal(t,la,lo)) > noise_cell(la,lo))&&(isnan(ToE(la,lo))))
+                ToE(la,lo) = t + 1849;
+            end
+        end
+    end
+end
+
+
+
+    %% Map Time of Emergence
+    h3 = colorbar('color', [0 0 0], 'box', 'on', 'tickdirection', 'in');
+    
+    % set limit of data
+    set(gca, 'clim', [0,3]); % set colour limit
+    
+    figure;
+    m_proj('robinson', 'lat', [-90 90], 'lon', [-180 180] );
+    h = m_pcolor(lon, lat, ToE); set(h, 'linestyle', 'none'); hold on;
+    h = m_pcolor(lon-357, lat, ToE); set(h, 'linestyle', 'none'); hold on;
+    set(gca, 'clim', [1850,2005]);
+    m_grid; 
+    
+    % add coastline
+    m_coast('color', [0 0 0]);
+    bar = colorbar('southoutside');
+    title(bar, 'Time of Emergence (of the ensemble mean)');
+    saveas(gcf,'/home/ryserp/matlab_figures/ToE_each_cell.jpg')
+
+%% 9. Making the Time of perpetual emergence (of the ensemble mean) map    
+ToE_perp = NaN(96,144);
+for t = flip(1:156)
+    for lo = 1:144
+        for la= 1:96
+            if ((squeeze(Signal(t,la,lo)) < noise_cell(la,lo))&&(isnan(ToE_perp(la,lo))))
+                ToE_perp(la,lo) = t+1850;
+            end
+        end
+    end
+end
+for lo = 1:144
+    for la = 1:96
+        if (ToE_perp(la,lo)==2006)
+            ToE_perp(la,lo) = NaN;
+        end
+    end
+end
+
+
+test = ones(96,144);
+for lo = 1:144
+    for la= 1:96
+        if ((ToE_perp(la,lo) < ToE(la,lo)))
+                test(la,lo) = NaN;
+        end
+    end
+end
+%% Map Time of perpetual Emergence 
+    h3 = colorbar('color', [0 0 0], 'box', 'on', 'tickdirection', 'in');
+    
+    % set limit of data
+    set(gca, 'clim', [0,156]); % set colour limit
+    
+    figure;
+    
+    m_proj('robinson', 'lat', [-90 90], 'lon', [-180 180] );
+    h = m_pcolor(lon, lat, ToE_perp); set(h, 'linestyle', 'none'); hold on;
+    h = m_pcolor(lon-357, lat, ToE_perp); set(h, 'linestyle', 'none'); hold on;
+    set(gca, 'clim', [1850,2005]);
+    m_grid; 
+    
+    % add coastline
+    m_coast('color', [0 0 0]);
+    bar = colorbar('southoutside');
+    title(bar, 'Time of perpetual Emergence (of the ensemble mean)');
+    saveas(gcf,'/home/ryserp/matlab_figures/ToE_perp_each_cell.jpg')
+
+%% 10. Making the Time of perpetual emergence from the 0to100th percentile
+
+avg = 1;
+
+
+%% 11. Looking for the point of interest
+%% Plotting a random map with everything equal to 1
+test = ones(96,144);
+test(44,111) = 10;
+    %   add colorbar
+    %h3 = colorbar('color', [0,0,0], 'box', 'on', 'tickdirection', 'in');
+    % set limit of data
+    set(gca, 'clim', [-20,20]); % set colour limit
+    figure;
+    m_proj('robinson', 'lat', [-90 90], 'lon', [-180 180] );
+    h = m_pcolor(lon, lat, (test)); set(h, 'linestyle', 'none'); hold on;
+    h = m_pcolor(lon-357, lat, (squeeze(test))); set(h, 'linestyle', 'none'); hold on;
+    m_grid; 
+    
+    % add coastline
+    m_coast('color', [0 0 0]);
+    bar = colorbar('northoutside');
+    title(bar, 'Temperature (°C)');    
+    saveas(gcf, '/home/ryserp/matlab_figures/point_of_interest(Peru).jpg')
+
+
+%% 7. making the really difficult graph (first globl, then regional ...)
+% 7.1 Trends in (°C/trend length)
+% Choose the length of the graph on the x axis: 50 years
+% for Switzerland
+trend_at_yrs = NaN(41,1);
+for i = 1:41
+    trend_at_yrs(i,1)=ensemble_mean_swiss(1,156)-ensemble_mean_swiss(1,146-i);
+end
+figure;
+plot(10:50, trend_at_yrs')
+ylim([-2 3])
+
+
+% for the globe
+% with the ensemble mean I am not looking at the natural variability. 
+trend_at_yrs = NaN(41,1);
+for i = 1:41
+    trend_at_yrs(i,1)=ensemble_mean_swiss(1,156)-ensemble_mean_swiss(1,146-i);
+end
+figure;
+plot(10:50, trend_at_yrs')
+
+% 7.2 Grey bars signifying the natural variability from model data
+% (The light grey from the CH2018)
+
